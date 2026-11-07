@@ -5,8 +5,9 @@ async function getArticleDetail(slug) {
   const SUPABASE_KEY = "sb_publishable_U05M_WQFKioCZ1LNSfyNbQ_jUoJTQvd";
   
   try {
+    // Ambil seluruh data lalu cocokan dengan aman menggunakan JavaScript
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles?select=*&or=(slug.eq.${slug},id.eq.${slug})`,
+      `${SUPABASE_URL}/rest/v1/articles?select=*`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -20,7 +21,14 @@ async function getArticleDetail(slug) {
     const rows = await res.json();
     if (!rows || rows.length === 0) return null;
     
-    const row = rows[0];
+    // Cari artikel yang slug atau id-nya cocok dengan URL
+    const row = rows.find(r => 
+      (r.slug && r.slug.toString() === slug) || 
+      (r.id && r.id.toString() === slug)
+    );
+    
+    if (!row) return null;
+    
     return {
       ...row,
       title: row.title || "Untitled Article",
