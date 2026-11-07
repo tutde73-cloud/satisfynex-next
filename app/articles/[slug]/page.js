@@ -18,23 +18,24 @@ async function getArticleDetail(slug) {
     
     if (!res.ok) return { article: null, related: [] };
     const rows = await res.json();
-    if (!rows || rows.length === 0) return { article: null, related: [] };
+    if (!rows || !Array.isArray(rows) || rows.length === 0) return { article: null, related: [] };
     
     const matchedRow = rows.find(r => 
-      (r.slug && r.slug.toString() === slug) || 
-      (r.id && r.id.toString() === slug)
+      r && ((r.slug && r.slug.toString() === slug) || (r.id && r.id.toString() === slug))
     );
     
     if (!matchedRow) return { article: null, related: [] };
 
     const formatRow = (row) => {
+      if (!row) return null;
       const content = Array.isArray(row.content) 
-        ? row.content.map(x => typeof x === "string" ? x : (x.text || x.content || "")).join("\n\n") 
+        ? row.content.map(x => typeof x === "string" ? x : (x?.text || x?.content || "")).join("\n\n") 
         : String(row.content || "");
       const words = content.trim().split(/\s+/).filter(Boolean).length;
       
       return {
-        id: row.slug || row.id,
+        id: row.slug || row.id || "",
+        slug: row.slug || row.id || "",
         title: row.title || "Untitled Article",
         ticker: row.ticker || "",
         category: row.category || "Stock Analysis",
@@ -50,9 +51,10 @@ async function getArticleDetail(slug) {
 
     const article = formatRow(matchedRow);
     const related = rows
-      .filter(r => (r.slug || r.id).toString() !== slug)
+      .filter(r => r && (r.slug || r.id)?.toString() !== slug)
       .slice(0, 3)
-      .map(formatRow);
+      .map(formatRow)
+      .filter(Boolean);
 
     return { article, related };
   } catch (err) {
@@ -61,7 +63,8 @@ async function getArticleDetail(slug) {
 }
 
 export default async function ArticlePage({ params }) {
-  const { slug } = await params;
+  const resolvedParams = await params;
+  const slug = resolvedParams?.slug;
   const { article, related } = await getArticleDetail(slug);
 
   if (!article) {
@@ -103,16 +106,18 @@ export default async function ArticlePage({ params }) {
             </div>
           </header>
 
-          <img className="article-hero" src={article.coverImage || article.image} alt={article.title} />
+          {article.coverImage || article.image ? (
+            <img className="article-hero" src={article.coverImage || article.image} alt={article.title} />
+          ) : null}
 
           <div className="article-layout">
             <div className="article-content">
-              {article.chartImage && (
+              {article.chartImage ? (
                 <div style={{ marginBottom: '25px', textAlign: 'center' }}>
                   <img src={article.chartImage} alt={`${article.title} Chart`} style={{ width: '100%', borderRadius: '10px' }} />
                   <p className="small muted" style={{ marginTop: '8px' }}>Technical Chart & Price Action Structure</p>
                 </div>
-              )}
+              ) : null}
 
               <div dangerouslySetInnerHTML={{ __html: article.content }} />
 
@@ -135,13 +140,13 @@ export default async function ArticlePage({ params }) {
               <div style={{ margin: '20px 0', padding: '12px', background: 'rgba(142, 224, 189, 0.03)', borderLeft: '3px solid var(--accent)', fontSize: '0.85rem', color: 'var(--muted)' }}>
                 <span>Primary Source Verification: </span>
                 <a href="https://www.sec.gov" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>SEC EDGAR Database</a> • 
-                <a href="https://www.investor.gov" target="_blank" rel="noopener" style="color: var(--accent)">Investor Relations Portal</a>
+                <a href="https://www.investor.gov" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>Investor Relations Portal</a>
               </div>
 
               <hr style={{ border: 0, borderTop: '1px solid var(--line)', margin: '35px 0' }} />
               <p className="muted small">This article is provided for informational and educational purposes only. It is not a recommendation to buy or sell any security.</p>
 
-              {related.length > 0 && (
+              {Array.isArray(related) && related.length > 0 && (
                 <div className="related-research-section">
                   <div className="eyebrow" style={{ marginBottom: '4px' }}>Keep Researching</div>
                   <h3 style={{ fontSize: '20px', margin: '0 0 12px 0' }}>Related Research</h3>
