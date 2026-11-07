@@ -1,12 +1,12 @@
 import Link from 'next/link';
 
-async function getArticleAndRelated(slug) {
+async function getArticleDetail(slug) {
   const SUPABASE_URL = "https://ngysrsypmieuvucqupgd.supabase.co";
   const SUPABASE_KEY = "sb_publishable_U05M_WQFKioCZ1LNSfyNbQ_jUoJTQvd";
   
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles?select=*&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/articles?select=*`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -20,7 +20,6 @@ async function getArticleAndRelated(slug) {
     const rows = await res.json();
     if (!rows || rows.length === 0) return { article: null, related: [] };
     
-    // Cari artikel utama berdasarkan slug atau id
     const matchedRow = rows.find(r => 
       (r.slug && r.slug.toString() === slug) || 
       (r.id && r.id.toString() === slug)
@@ -28,21 +27,28 @@ async function getArticleAndRelated(slug) {
     
     if (!matchedRow) return { article: null, related: [] };
 
-    const formatRow = (row) => ({
-      ...row,
-      slug: row.slug || row.id,
-      title: row.title || "Untitled Article",
-      content: row.content || "",
-      image: row.cover_image || row.image_url || row.image || "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80",
-      category: row.category || "Stock Analysis",
-      ticker: row.ticker || "",
-      date: row.created_at ? new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Nov 7, 2026",
-      read: "3 min read"
-    });
+    const formatRow = (row) => {
+      const content = Array.isArray(row.content) 
+        ? row.content.map(x => typeof x === "string" ? x : (x.text || x.content || "")).join("\n\n") 
+        : String(row.content || "");
+      const words = content.trim().split(/\s+/).filter(Boolean).length;
+      
+      return {
+        id: row.slug || row.id,
+        title: row.title || "Untitled Article",
+        ticker: row.ticker || "",
+        category: row.category || "Stock Analysis",
+        date: row.created_at ? new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Nov 7, 2026",
+        image: row.cover_image || row.image_url || "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80",
+        chartImage: row.image_url || "",
+        coverImage: row.cover_image || "",
+        read: Math.max(1, Math.ceil(words / 200)) + " min read",
+        excerpt: row.excerpt || content.slice(0, 220),
+        content
+      };
+    };
 
     const article = formatRow(matchedRow);
-    
-    // Ambil 3 artikel lainnya sebagai rekomendasi artikel terkait
     const related = rows
       .filter(r => (r.slug || r.id).toString() !== slug)
       .slice(0, 3)
@@ -56,7 +62,7 @@ async function getArticleAndRelated(slug) {
 
 export default async function ArticlePage({ params }) {
   const { slug } = await params;
-  const { article, related } = await getArticleAndRelated(slug);
+  const { article, related } = await getArticleDetail(slug);
 
   if (!article) {
     return (
@@ -83,77 +89,100 @@ export default async function ArticlePage({ params }) {
         </div>
       </header>
 
-      <main className="container" style={{ padding: '40px 0 80px', maxWidth: '800px' }}>
-        <div style={{ marginBottom: '20px' }}>
-          <Link href="/" className="muted small" style={{ textDecoration: 'underline' }}>← Back to all research</Link>
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <span className="tag">{article.category}</span>
-        </div>
-
-        <h1 style={{ fontSize: 'clamp(28px, 4vw, 42px)', lineHeight: '1.25', marginBottom: '15px', letterSpacing: '-0.5px' }}>
-          {article.title}
-        </h1>
-
-        <div className="meta" style={{ marginBottom: '25px', fontSize: '13px', paddingBottom: '15px', borderBottom: '1px solid var(--line)' }}>
-          <span>{article.ticker}</span>
-          <span>{article.date}</span>
-          <span>{article.read}</span>
-        </div>
-
-        {article.image && (
-          <div style={{ marginBottom: '30px', borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--line)' }}>
-            <img src={article.image} alt={article.title} style={{ width: '100%', maxHeight: '450px', objectFit: 'cover', display: 'block' }} />
-          </div>
-        )}
-
-        <div 
-          className="article-content" 
-          style={{ fontSize: '16px', lineHeight: '1.8', color: 'var(--text)' }}
-          dangerouslySetInnerHTML={{ __html: article.content }}
-        />
-
-        {/* BAGIAN ARTIKEL TERKAIT (RELATED ARTICLES) */}
-        {related.length > 0 && (
-          <section style={{ marginTop: '60px', paddingTop: '40px', borderTop: '1px solid var(--line)' }}>
-            <div className="eyebrow" style={{ marginBottom: '10px' }}>Continue reading</div>
-            <h3 style={{ fontSize: '22px', marginBottom: '20px' }}>More research articles</h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-              {related.map(item => (
-                <article key={item.id} style={{ background: 'var(--card-bg, #161b22)', border: '1px solid var(--line)', borderRadius: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <Link href={`/articles/${item.slug}`}>
-                    <img src={item.image} alt={item.title} style={{ width: '100%', height: '130px', objectFit: 'cover' }} />
-                  </Link>
-                  <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <span className="tag" style={{ fontSize: '10px', marginBottom: '6px', alignSelf: 'flex-start' }}>{item.category}</span>
-                    <h4 style={{ fontSize: '14px', lineHeight: '1.4', marginBottom: '10px' }}>
-                      <Link href={`/articles/${item.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {item.title}
-                      </Link>
-                    </h4>
-                    <div className="meta" style={{ fontSize: '11px', marginTop: 'auto' }}>
-                      <span>{item.ticker}</span>
-                      <span>{item.date}</span>
-                    </div>
-                  </div>
-                </article>
-              ))}
+      <main className="container article-page" style={{ paddingTop: '40px', paddingBottom: '80px' }}>
+        <Link className="back-link" href="/">← Back to research</Link>
+        <article>
+          <header className="article-header">
+            <div style={{ marginBottom: '8px' }}><span className="tag">{article.category}</span></div>
+            <h1>{article.title}</h1>
+            <p className="article-lead">{article.excerpt}</p>
+            <div className="meta">
+              <span>{article.ticker}</span>
+              <span>{article.date}</span>
+              <span>{article.read}</span>
             </div>
-          </section>
-        )}
+          </header>
 
-        <div style={{ marginTop: '40px', paddingTop: '25px', borderTop: '1px solid var(--line)' }}>
-          <Link href="/" className="read-more">← Back to Home / Latest Articles</Link>
-        </div>
+          <img className="article-hero" src={article.coverImage || article.image} alt={article.title} />
+
+          <div className="article-layout">
+            <div className="article-content">
+              {article.chartImage && (
+                <div style={{ marginBottom: '25px', textAlign: 'center' }}>
+                  <img src={article.chartImage} alt={`${article.title} Chart`} style={{ width: '100%', borderRadius: '10px' }} />
+                  <p className="small muted" style={{ marginTop: '8px' }}>Technical Chart & Price Action Structure</p>
+                </div>
+              )}
+
+              <div dangerouslySetInnerHTML={{ __html: article.content }} />
+
+              <div className="satisfynex-author-card" style={{ margin: '30px 0 20px 0', padding: '20px', backgroundColor: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', display: 'flex', gap: '16px', alignItems: 'flex-start', color: 'var(--text)' }}>
+                <div style={{ flexShrink: 0 }}>
+                  <img src="/Icon.png" alt="Tutde Ariyasa" style={{ width: '50px', height: '50px', borderRadius: '50%', border: '1px solid var(--line)', objectFit: 'cover', background: '#0c1017' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--accent)', textTransform: 'uppercase' }}>WRITTEN BY</span>
+                  <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)' }}>Tutde Ariyasa</h4>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', lineHeight: '1.45', color: 'var(--muted)' }}>
+                    Independent financial analyst and founder of Satisfynex, specializing in US equities technical analysis, market data visualization, and risk-first research.
+                  </p>
+                  <div style={{ marginTop: '6px', fontSize: '0.8rem', color: 'var(--muted)' }}>
+                    <span>Independent Financial Analyst</span> • <Link href="/about" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Learn about our research methodology →</Link>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ margin: '20px 0', padding: '12px', background: 'rgba(142, 224, 189, 0.03)', borderLeft: '3px solid var(--accent)', fontSize: '0.85rem', color: 'var(--muted)' }}>
+                <span>Primary Source Verification: </span>
+                <a href="https://www.sec.gov" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>SEC EDGAR Database</a> • 
+                <a href="https://www.investor.gov" target="_blank" rel="noopener" style="color: var(--accent)">Investor Relations Portal</a>
+              </div>
+
+              <hr style={{ border: 0, borderTop: '1px solid var(--line)', margin: '35px 0' }} />
+              <p className="muted small">This article is provided for informational and educational purposes only. It is not a recommendation to buy or sell any security.</p>
+
+              {related.length > 0 && (
+                <div className="related-research-section">
+                  <div className="eyebrow" style={{ marginBottom: '4px' }}>Keep Researching</div>
+                  <h3 style={{ fontSize: '20px', margin: '0 0 12px 0' }}>Related Research</h3>
+                  <div className="related-grid">
+                    {related.map(rel => (
+                      <article key={rel.id} className="related-card">
+                        <Link href={`/articles/${rel.slug}`}>
+                          <img className="related-thumb" src={rel.image} alt={rel.title} loading="lazy" />
+                        </Link>
+                        <div className="related-body">
+                          <span className="related-date">{rel.date}</span>
+                          <h4 className="related-title">
+                            <Link href={`/articles/${rel.slug}`}>{rel.title}</Link>
+                          </h4>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <aside className="sidebar">
+              <div className="panel">
+                <h3>About this research</h3>
+                <p>Satisfynex explores company fundamentals, market developments, technical evidence, and investment risks.</p>
+              </div>
+              <div className="panel">
+                <h3>Explore more</h3>
+                <Link className="read-more" href="/#latest">Browse all articles →</Link>
+              </div>
+            </aside>
+          </div>
+        </article>
       </main>
 
       <footer className="footer">
         <div className="container">
           <div className="footer-row">
             <div>
-              <a className="brand" href="/">satisfy<span>nex</span></a>
+              <Link className="brand" href="/">satisfy<span>nex</span></Link>
               <p style={{ margin: '8px 0' }}>Independent US stock research and investing education.</p>
             </div>
           </div>
