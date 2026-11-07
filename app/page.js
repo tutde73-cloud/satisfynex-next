@@ -1,10 +1,12 @@
+import Link from 'next/link';
+
 async function getArticles() {
   const SUPABASE_URL = "https://ngysrsypmieuvucqupgd.supabase.co";
   const SUPABASE_KEY = "sb_publishable_U05M_WQFKioCZ1LNSfyNbQ_jUoJTQvd";
   
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles?select=*&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/articles?select=id,title,slug,ticker,category,excerpt,content,image_url,cover_image,status,created_at&status=eq.published&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -19,21 +21,22 @@ async function getArticles() {
     
     return rows.map((row) => {
       const slug = row.slug || row.id;
-      const imageUrl = row.cover_image || row.image_url || row.image || "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80";
       const tickerVal = (row.ticker || "").toUpperCase();
       const catVal = (row.category || "").toUpperCase();
-      const isGlobal = ["$SSEC", "$COMPOSITE", "$IHSG", "$NYA", "$NDX", "$DJI", "$SPX", "$XAUUSD", "$KOSPI"].some(t => tickerVal.includes(t)) || catVal.includes("GLOBAL");
+      const isGlobal = ['$SSEC', '$COMPOSITE', '$IHSG', '$NYA', '$NDX', '$DJI', '$SPX', '$XAUUSD', '$KOSPI'].some(t => tickerVal.includes(t)) || catVal.includes("GLOBAL");
+      const imageUrl = row.cover_image || row.image_url || "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80";
 
       return {
-        ...row,
+        id: slug,
         slug,
-        image: imageUrl,
         title: row.title || "Untitled Article",
-        category: isGlobal ? "GLOBAL MARKETS" : (row.category || "Stock Analysis"),
         ticker: row.ticker || "",
-        excerpt: row.excerpt || "",
+        category: isGlobal ? "GLOBAL MARKETS" : (row.category || "Stock Analysis"),
         date: row.created_at ? new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Nov 7, 2026",
+        image: imageUrl,
         read: "3 min read",
+        excerpt: row.excerpt || "Read the latest Satisfynex research.",
+        content: row.content || "",
         isGlobal
       };
     });
@@ -45,7 +48,8 @@ async function getArticles() {
 export default async function Home() {
   const articles = await getArticles();
   const normalArticles = articles.filter(a => !a.isGlobal);
-  
+  const globalArticles = articles.filter(a => a.isGlobal).slice(0, 5);
+
   const mainArticle = normalArticles[0];
   const sideArticles = normalArticles.slice(1, 4);
   const latestArticles = articles.slice(0, 20);
@@ -53,32 +57,37 @@ export default async function Home() {
   return (
     <div>
       <header className="topbar">
-        <div className="ticker-tape-container"></div>
+        <div className="ticker-tape-container">
+          <div className="tradingview-widget-container">
+            <div className="tradingview-widget-container__widget"></div>
+          </div>
+        </div>
         <div className="container nav">
-          <a className="brand" href="/">satisfy<span>nex</span></a>
+          <Link className="brand" href="/">satisfy<span>nex</span></Link>
           <nav className="navlinks" aria-label="Main navigation">
-            <a href="/global-markets">Global Markets</a>
-            <a href="/">Research</a>
-            <a href="/#latest">Latest</a>
-            <a href="/about">About</a>
+            <Link href="/global-markets">Global Markets</Link>
+            <Link href="/">Research</Link>
+            <Link href="/#latest">Latest</Link>
+            <Link href="/about">About</Link>
           </nav>
         </div>
       </header>
-      
+ 
       <main>
         <section className="hero">
           <div className="container">
             <div className="eyebrow">Independent market research</div>
-            <h1 className="hero-title">Understand the business behind the stock.</h1>
-            <p>Satisfynex delivers daily visual chart breakdowns and technical price action research on high-momentum US equities.</p>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start', marginTop: '15px'}}>
+            <h2 className="hero-title">Understand the business behind the stock.</h2>
+            <p className="text-rotator">Satisfynex delivers daily visual chart breakdowns and technical price action research on high-momentum US equities.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
               <div className="hero-note">Research and education · Not financial advice</div>
-              <div style={{fontSize: '11px', color: 'var(--muted)', fontStyle: 'italic', opacity: 0.85}}>While others lock their insights behind paywalls and sign-up forms, we give you the analysis upfront.</div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', fontStyle: 'italic', opacity: 0.85 }}>
+                While others lock their insights behind paywalls and sign-up forms, we give you the analysis upfront.
+              </div>
             </div>
           </div>
         </section>
  
-        {/* SECTION FEATURED (Editor's Selection) */}
         <section className="section">
           <div className="container">
             <div className="section-heading">
@@ -87,76 +96,116 @@ export default async function Home() {
                 <h2>Featured research</h2>
               </div>
             </div>
-            
             {mainArticle ? (
               <div className="featured-grid">
                 <article className="feature-main">
-                  <a href={`/articles/${mainArticle.slug}`}>
+                  <Link href={`/articles/${mainArticle.slug}`}>
                     <img className="cover" src={mainArticle.image} alt={mainArticle.title} />
-                  </a>
+                  </Link>
                   <div className="body">
                     <div><span className="tag">{mainArticle.category}</span></div>
-                    <h3><a href={`/articles/${mainArticle.slug}`}>{mainArticle.title}</a></h3>
+                    <h3>
+                      <Link href={`/articles/${mainArticle.slug}`}>{mainArticle.title}</Link>
+                    </h3>
                     <div className="meta">
                       <span>{mainArticle.ticker}</span>
                       <span>{mainArticle.date}</span>
                       <span>{mainArticle.read}</span>
                     </div>
                     <p className="excerpt">{mainArticle.excerpt}</p>
-                    <a className="read-more" href={`/articles/${mainArticle.slug}`}>Read full analysis →</a>
+                    <Link className="read-more" href={`/articles/${mainArticle.slug}`}>Read full analysis →</Link>
                   </div>
                 </article>
-
                 <div className="feature-side">
-                  {sideArticles.map(art => (
-                    <article key={art.id} className="side-story">
-                      <a href={`/articles/${art.slug}`}>
-                        <img src={art.image} alt={art.title} />
-                      </a>
+                  {sideArticles.map(a => (
+                    <article key={a.id} className="side-story">
+                      <Link href={`/articles/${a.slug}`}>
+                        <img src={a.image} alt={a.title} loading="lazy" />
+                      </Link>
                       <div>
-                        <div><span className="tag">{art.category}</span></div>
-                        <h3><a href={`/articles/${art.slug}`}>{art.title}</a></h3>
-                        <div className="meta">{art.date}</div>
+                        <div><span className="tag">{a.category}</span></div>
+                        <h3>
+                          <Link href={`/articles/${a.slug}`}>{a.title}</Link>
+                        </h3>
+                        <div className="meta">{a.date}</div>
                       </div>
                     </article>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="notice">Loading featured research...</div>
+              <div className="notice">Loading published research...</div>
             )}
           </div>
         </section>
  
-        {/* SECTION LATEST ARTICLES */}
         <section className="section" id="latest">
           <div className="container">
             <div className="section-heading">
               <div>
                 <div className="eyebrow">Explore the research</div>
-                <h2>Latest Research Articles ({articles.length})</h2>
+                <h2>Latest articles</h2>
               </div>
+              <div className="muted small">{articles.length} articles</div>
             </div>
 
             <div className="article-grid">
-              {latestArticles.map((art) => (
-                <article key={art.id} className="article-card">
-                  <a href={`/articles/${art.slug}`}>
-                    <img className="cover" src={art.image} alt={art.title} loading="lazy" />
-                  </a>
+              {latestArticles.map(a => (
+                <article key={a.id} className="article-card">
+                  <Link href={`/articles/${a.slug}`}>
+                    <img className="cover" src={a.image} alt={a.title} loading="lazy" />
+                  </Link>
                   <div className="body">
-                    <div><span className="tag">{art.category}</span></div>
-                    <h3><a href={`/articles/${art.slug}`}>{art.title}</a></h3>
+                    <div><span className="tag">{a.category}</span></div>
+                    <h3>
+                      <Link href={`/articles/${a.slug}`}>{a.title}</Link>
+                    </h3>
                     <div className="meta">
-                      <span>{art.ticker}</span>
-                      <span>{art.date}</span>
-                      <span>{art.read}</span>
+                      <span>{a.ticker}</span>
+                      <span>{a.date}</span>
+                      <span>{a.read}</span>
                     </div>
-                    <p className="excerpt">{art.excerpt}</p>
-                    <a className="read-more" href={`/articles/${art.slug}`}>Read analysis →</a>
+                    <p className="excerpt">{a.excerpt}</p>
+                    <Link className="read-more" href={`/articles/${a.slug}`}>Read analysis →</Link>
                   </div>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+ 
+        <section className="section" style={{ borderTop: '1px solid var(--line)', background: 'rgba(19, 26, 37, 0.4)' }}>
+          <div className="container">
+            <div className="section-heading">
+              <div>
+                <div className="eyebrow">Macro & Indices</div>
+                <h2>Global Markets Insights</h2>
+              </div>
+              <Link className="read-more" href="/global-markets" style={{ margin: 0 }}>View all global markets →</Link>
+            </div>
+            <div className="article-grid">
+              {globalArticles.length > 0 ? globalArticles.map(a => (
+                <article key={a.id} className="article-card">
+                  <Link href={`/articles/${a.slug}`}>
+                    <img className="cover" src={a.image} alt={a.title} loading="lazy" />
+                  </Link>
+                  <div className="body">
+                    <div><span className="tag">{a.category}</span></div>
+                    <h3>
+                      <Link href={`/articles/${a.slug}`}>{a.title}</Link>
+                    </h3>
+                    <div className="meta">
+                      <span>{a.ticker}</span>
+                      <span>{a.date}</span>
+                      <span>{a.read}</span>
+                    </div>
+                    <p className="excerpt">{a.excerpt}</p>
+                    <Link className="read-more" href={`/articles/${a.slug}`}>Read analysis →</Link>
+                  </div>
+                </article>
+              )) : (
+                <div className="notice" style={{ gridColumn: '1/-1' }}>No global market insights published yet.</div>
+              )}
             </div>
           </div>
         </section>
@@ -166,17 +215,17 @@ export default async function Home() {
         <div className="container">
           <div className="footer-row">
             <div>
-              <a className="brand" href="/">satisfy<span>nex</span></a>
-              <p style={{margin: '8px 0'}}>Independent US stock research and investing education.</p>
+              <Link className="brand" href="/">satisfy<span>nex</span></Link>
+              <p style={{ margin: '8px 0' }}>Independent US stock research and investing education.</p>
               <p>Questions? <a className="email-link" href="mailto:research@satisfynex.com">research@satisfynex.com</a></p>
             </div>
             <nav className="footer-links" aria-label="Policies and information">
-              <a href="/global-markets">Global Markets</a>
-              <a href="/privacy-policy">Privacy Policy</a>
-              <a href="/terms-of-service">Terms of Service</a>
-              <a href="/about">About Us</a>
-              <a href="/contact">Contact Us</a>
-              <a href="/disclaimer">Investment Disclaimer</a>
+              <Link href="/global-markets">Global Markets</Link>
+              <Link href="/privacy-policy">Privacy Policy</Link>
+              <Link href="/terms-of-service">Terms of Service</Link>
+              <Link href="/about">About Us</Link>
+              <Link href="/contact">Contact Us</Link>
+              <Link href="/disclaimer">Investment Disclaimer</Link>
             </nav>
           </div>
           <p>© {new Date().getFullYear()} Satisfynex. All rights reserved. Market analysis is for educational purposes only.</p>
