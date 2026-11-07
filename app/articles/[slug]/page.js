@@ -1,13 +1,12 @@
 import Link from 'next/link';
 
-async function getArticleDetail(slug) {
+async function getArticleAndRelated(slug) {
   const SUPABASE_URL = "https://ngysrsypmieuvucqupgd.supabase.co";
   const SUPABASE_KEY = "sb_publishable_U05M_WQFKioCZ1LNSfyNbQ_jUoJTQvd";
   
   try {
-    // Ambil seluruh data lalu cocokan dengan aman menggunakan JavaScript
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles?select=*`,
+      `${SUPABASE_URL}/rest/v1/articles?select=*&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -17,36 +16,47 @@ async function getArticleDetail(slug) {
       }
     );
     
-    if (!res.ok) return null;
+    if (!res.ok) return { article: null, related: [] };
     const rows = await res.json();
-    if (!rows || rows.length === 0) return null;
+    if (!rows || rows.length === 0) return { article: null, related: [] };
     
-    // Cari artikel yang slug atau id-nya cocok dengan URL
-    const row = rows.find(r => 
+    // Cari artikel utama berdasarkan slug atau id
+    const matchedRow = rows.find(r => 
       (r.slug && r.slug.toString() === slug) || 
       (r.id && r.id.toString() === slug)
     );
     
-    if (!row) return null;
-    
-    return {
+    if (!matchedRow) return { article: null, related: [] };
+
+    const formatRow = (row) => ({
       ...row,
+      slug: row.slug || row.id,
       title: row.title || "Untitled Article",
-      content: row.content || "No content available.",
+      content: row.content || "",
       image: row.cover_image || row.image_url || row.image || "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80",
       category: row.category || "Stock Analysis",
       ticker: row.ticker || "",
       date: row.created_at ? new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Nov 7, 2026",
       read: "3 min read"
-    };
+    });
+
+    const article = formatRow(matchedRow);
+    
+    // Ambil 3 artikel lainnya sebagai rekomendasi artikel terkait
+    const related = rows
+      .filter(r => (r.slug || r.id).toString() !== slug)
+      .slice(0, 3)
+      .map(formatRow);
+
+    return { article, related };
   } catch (err) {
-    return null;
+    return { article: null, related: [] };
   }
 }
 
 export default async function ArticlePage({ params }) {
   const { slug } = await params;
-  const article = await getArticleDetail(slug);
+  const { article, related } = await getArticleAndRelated(slug);
 
   if (!article) {
     return (
@@ -98,11 +108,43 @@ export default async function ArticlePage({ params }) {
           </div>
         )}
 
-        <div className="article-content" style={{ fontSize: '16px', lineHeight: '1.8', color: 'var(--text)' }}>
-          <div style={{ whiteSpace: 'pre-line' }}>{article.content}</div>
-        </div>
+        <div 
+          className="article-content" 
+          style={{ fontSize: '16px', lineHeight: '1.8', color: 'var(--text)' }}
+          dangerouslySetInnerHTML={{ __html: article.content }}
+        />
 
-        <div style={{ marginTop: '50px', paddingTop: '25px', borderTop: '1px solid var(--line)' }}>
+        {/* BAGIAN ARTIKEL TERKAIT (RELATED ARTICLES) */}
+        {related.length > 0 && (
+          <section style={{ marginTop: '60px', paddingTop: '40px', borderTop: '1px solid var(--line)' }}>
+            <div className="eyebrow" style={{ marginBottom: '10px' }}>Continue reading</div>
+            <h3 style={{ fontSize: '22px', marginBottom: '20px' }}>More research articles</h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              {related.map(item => (
+                <article key={item.id} style={{ background: 'var(--card-bg, #161b22)', border: '1px solid var(--line)', borderRadius: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <Link href={`/articles/${item.slug}`}>
+                    <img src={item.image} alt={item.title} style={{ width: '100%', height: '130px', objectFit: 'cover' }} />
+                  </Link>
+                  <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    <span className="tag" style={{ fontSize: '10px', marginBottom: '6px', alignSelf: 'flex-start' }}>{item.category}</span>
+                    <h4 style={{ fontSize: '14px', lineHeight: '1.4', marginBottom: '10px' }}>
+                      <Link href={`/articles/${item.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {item.title}
+                      </Link>
+                    </h4>
+                    <div className="meta" style={{ fontSize: '11px', marginTop: 'auto' }}>
+                      <span>{item.ticker}</span>
+                      <span>{item.date}</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div style={{ marginTop: '40px', paddingTop: '25px', borderTop: '1px solid var(--line)' }}>
           <Link href="/" className="read-more">← Back to Home / Latest Articles</Link>
         </div>
       </main>
