@@ -2,65 +2,483 @@ async function getArticles() {
   const SUPABASE_URL = "https://ngysrsypmieuvucqupgd.supabase.co";
   const SUPABASE_KEY = "sb_publishable_U05M_WQFKioCZ1LNSfyNbQ_jUoJTQvd";
   
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/articles?select=id,title,slug,ticker,category,excerpt,content,image_url,cover_image,status,created_at&status=eq.published&order=created_at.desc`, {
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: "Bearer " + SUPABASE_KEY,
-    },
-    next: { revalidate: 60 } // Update data otomatis setiap 60 detik
-  });
+  // Menggunakan cache: 'no-store' agar data selalu paling baru secara real-time dari Supabase
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/articles?select=id,title,slug,ticker,category,excerpt,content,image_url,cover_image,status,created_at&status=eq.published&order=created_at.desc`,
+    {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: "Bearer " + SUPABASE_KEY,
+      },
+      cache: "no-store",
+    }
+  );
   
   if (!res.ok) return [];
-  return res.json();
+  const rows = await res.json();
+  
+  return rows.map((row) => {
+    const slug = row.slug || row.id;
+    const imageUrl =
+      row.cover_image ||
+      row.image_url ||
+      "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80";
+    const tickerVal = (row.ticker || "").toUpperCase();
+    const catVal = (row.category || "").toUpperCase();
+    const isGlobal =
+      ["$SSEC", "$COMPOSITE", "$IHSG", "$NYA", "$NDX", "$DJI", "$SPX", "$XAUUSD", "$KOSPI"].some((t) =>
+        tickerVal.includes(t)
+      ) || catVal.includes("GLOBAL");
+
+    return {
+      ...row,
+      slug,
+      image: imageUrl,
+      category: isGlobal ? "GLOBAL MARKETS" : row.category || "Stock Analysis",
+      date: new Date(row.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      }),
+      read: "3 min read",
+      isGlobal,
+    };
+  });
 }
 
 export default async function Home() {
   const articles = await getArticles();
+  const normalArticles = articles.filter((a) => !a.isGlobal);
+  const mainArticle = normalArticles[0];
+  const sideArticles = normalArticles.slice(1, 4);
+  const latestArticles = articles.slice(0, 20);
 
   return (
     <div>
       <header className="topbar">
-        <div className="container nav">
-          <a className="brand" href="/">satisfy<span>nex</span></a>
-          <nav className="navlinks">
+        <div
+          className="ticker-tape-container"
+          style={{
+            width: "100%",
+            background: "#080b10",
+            borderBottom: "1px solid var(--line)",
+            minHeight: "46px",
+            overflow: "hidden",
+          }}
+        >
+          <div className="tradingview-widget-container">
+            <div className="tradingview-widget-container__widget"></div>
+          </div>
+        </div>
+
+        <div
+          className="container nav"
+          style={{
+            minHeight: "68px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "20px",
+          }}
+        >
+          <a
+            className="brand"
+            href="/"
+            style={{
+              fontSize: "25px",
+              fontWeight: "850",
+              letterSpacing: "-1.2px",
+              color: "var(--text)",
+            }}
+          >
+            satisfy<span style={{ color: "var(--accent)" }}>nex</span>
+          </a>
+          <nav
+            className="navlinks"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "18px",
+              color: "var(--muted)",
+              fontSize: "13px",
+            }}
+          >
             <a href="/global-markets">Global Markets</a>
             <a href="/">Research</a>
+            <a href="/#latest">Latest</a>
             <a href="/about">About</a>
           </nav>
         </div>
       </header>
-      
+
       <main>
-        <section className="hero">
+        <section
+          className="hero"
+          style={{
+            position: "relative",
+            padding: "85px 0 65px",
+            background:
+              'linear-gradient(90deg, rgba(12, 16, 23, 0.92) 0%, rgba(12, 16, 23, 0.75) 50%, rgba(12, 16, 23, 0.4) 100%), url("/IMG_1210.jpeg")',
+            backgroundSize: "cover",
+            backgroundPosition: "center right",
+            borderBottom: "1px solid var(--line)",
+          }}
+        >
           <div className="container">
-            <div className="eyebrow">Independent market research</div>
-            <h1 style={{fontSize: 'clamp(36px,6vw,60px)', margin: '16px 0'}}>Understand the business behind the stock.</h1>
-            <p style={{color: '#d0d9e5', fontSize: '17px'}}>Satisfynex delivers daily visual chart breakdowns and technical price action research on high-momentum US equities.</p>
+            <div
+              className="eyebrow"
+              style={{
+                color: "var(--accent)",
+                fontSize: "11px",
+                letterSpacing: "2px",
+                fontWeight: "800",
+                textTransform: "uppercase",
+              }}
+            >
+              Independent market research
+            </div>
+            <h2
+              className="hero-title"
+              style={{
+                maxWidth: "780px",
+                margin: "16px 0",
+                fontSize: "clamp(36px,6vw,60px)",
+                lineHeight: "1.1",
+                letterSpacing: "-1.8px",
+                color: "var(--text)",
+              }}
+            >
+              Understand the business behind the stock.
+            </h2>
+            <p style={{ maxWidth: "640px", color: "#d0d9e5", fontSize: "17px", lineHeight: "1.7" }}>
+              Satisfynex delivers daily visual chart breakdowns and technical price action research on high-momentum US equities.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start", marginTop: "15px" }}>
+              <div
+                className="hero-note"
+                style={{
+                  border: "1px solid var(--line)",
+                  borderRadius: "30px",
+                  padding: "7px 13px",
+                  color: "var(--muted)",
+                  fontSize: "12px",
+                  background: "rgba(12, 16, 23, 0.6)",
+                }}
+              >
+                Research and education · Not financial advice
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--muted)", fontStyle: "italic", opacity: "0.85" }}>
+                While others lock their insights behind paywalls and sign-up forms, we give you the analysis upfront.
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="container" style={{padding: '40px 0'}}>
-          <h2>Latest Research Articles ({articles.length})</h2>
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', marginTop: '20px'}}>
-            {articles.map((art) => {
-              const slug = art.slug || art.id;
-              return (
-                <div key={art.id} style={{background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '14px', padding: '16px'}}>
-                  <span style={{color: 'var(--accent)', fontSize: '10px', fontWeight: 'bold'}}>{art.category || 'Stock Analysis'}</span>
-                  <h3 style={{fontSize: '18px', margin: '10px 0'}}>
-                    <a href={`/articles/${slug}`}>{art.title}</a>
-                  </h3>
-                  <p style={{color: 'var(--muted)', fontSize: '13px'}}>{art.excerpt}</p>
+        <section className="section" style={{ padding: "42px 0" }}>
+          <div className="container">
+            <div className="section-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: "22px" }}>
+              <div>
+                <div
+                  className="eyebrow"
+                  style={{
+                    color: "var(--accent)",
+                    fontSize: "11px",
+                    letterSpacing: "2px",
+                    fontWeight: "800",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Editor's selection
                 </div>
-              );
-            })}
+                <h2 style={{ fontSize: "25px", margin: "0", color: "var(--text)" }}>Featured research</h2>
+              </div>
+            </div>
+
+            {mainArticle ? (
+              <div
+                className="featured-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1.5fr) minmax(280px,.9fr)",
+                  gap: "22px",
+                  alignItems: "stretch",
+                }}
+              >
+                <article
+                  className="feature-main"
+                  style={{
+                    background: "var(--panel)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "14px",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <a href={`/articles/${mainArticle.slug}`}>
+                    <img
+                      className="cover"
+                      src={mainArticle.image}
+                      alt={mainArticle.title}
+                      style={{ width: "100%", height: "320px", objectFit: "cover", background: "#0c1017" }}
+                    />
+                  </a>
+                  <div className="body" style={{ padding: "22px", display: "flex", flexDirection: "column", flex: 1 }}>
+                    <div>
+                      <span
+                        className="tag"
+                        style={{
+                          display: "inline-block",
+                          color: "var(--accent)",
+                          background: "#183e35",
+                          borderRadius: "5px",
+                          padding: "3px 7px",
+                          fontSize: "10px",
+                          textTransform: "uppercase",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {mainArticle.category}
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: "clamp(20px,2.5vw,26px)", lineHeight: "1.3", margin: "10px 0" }}>
+                      <a href={`/articles/${mainArticle.slug}`} style={{ color: "var(--text)" }}>
+                        {mainArticle.title}
+                      </a>
+                    </h3>
+                    <div
+                      className="meta"
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px 13px",
+                        color: "var(--muted)",
+                        fontSize: "11px",
+                        marginTop: "auto",
+                      }}
+                    >
+                      <span>{mainArticle.ticker}</span>
+                      <span>{mainArticle.date}</span>
+                      <span>{mainArticle.read}</span>
+                    </div>
+                    <p className="excerpt" style={{ color: "var(--muted)", fontSize: "13px", lineHeight: "1.7", margin: "10px 0" }}>
+                      {mainArticle.excerpt}
+                    </p>
+                    <a
+                      className="read-more"
+                      href={`/articles/${mainArticle.slug}`}
+                      style={{ color: "var(--accent)", fontSize: "12px", fontWeight: "750" }}
+                    >
+                      Read full analysis →
+                    </a>
+                  </div>
+                </article>
+
+                <div className="feature-side" style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+                  {sideArticles.map((art) => (
+                    <article
+                      key={art.id}
+                      className="side-story"
+                      style={{
+                        display: "flex",
+                        gap: "14px",
+                        padding: "15px",
+                        background: "var(--panel)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "12px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <a href={`/articles/${art.slug}`}>
+                        <img
+                          src={art.image}
+                          alt={art.title}
+                          style={{
+                            width: "110px",
+                            height: "80px",
+                            objectFit: "cover",
+                            borderRadius: "8px",
+                            flexShrink: 0,
+                            background: "#0c1017",
+                          }}
+                        />
+                      </a>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <div>
+                          <span
+                            className="tag"
+                            style={{
+                              display: "inline-block",
+                              color: "var(--accent)",
+                              background: "#183e35",
+                              borderRadius: "5px",
+                              padding: "3px 7px",
+                              fontSize: "10px",
+                              textTransform: "uppercase",
+                              fontWeight: "800",
+                            }}
+                          >
+                            {art.category}
+                          </span>
+                        </div>
+                        <h3 style={{ fontSize: "14px", lineHeight: "1.4", margin: "4px 0" }}>
+                          <a href={`/articles/${art.slug}`} style={{ color: "var(--text)" }}>
+                            {art.title}
+                          </a>
+                        </h3>
+                        <div className="meta" style={{ color: "var(--muted)", fontSize: "11px" }}>
+                          {art.date}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div
+                className="notice"
+                style={{
+                  border: "1px dashed var(--line)",
+                  borderRadius: "12px",
+                  padding: "24px",
+                  color: "var(--muted)",
+                  textAlign: "center",
+                }}
+              >
+                No featured articles found.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="section" id="latest" style={{ padding: "42px 0" }}>
+          <div className="container">
+            <div className="section-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: "22px" }}>
+              <div>
+                <div
+                  className="eyebrow"
+                  style={{
+                    color: "var(--accent)",
+                    fontSize: "11px",
+                    letterSpacing: "2px",
+                    fontWeight: "800",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Explore the research
+                </div>
+                <h2 style={{ fontSize: "25px", margin: "0", color: "var(--text)" }}>Latest articles</h2>
+              </div>
+              <div className="muted small" style={{ color: "var(--muted)", fontSize: "12px" }}>
+                {articles.length} articles
+              </div>
+            </div>
+
+            <div className="article-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "20px" }}>
+              {latestArticles.map((art) => (
+                <article
+                  key={art.id}
+                  className="article-card"
+                  style={{
+                    background: "var(--panel)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "14px",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <a href={`/articles/${art.slug}`}>
+                    <img
+                      className="cover"
+                      src={art.image}
+                      alt={art.title}
+                      style={{ width: "100%", height: "200px", objectFit: "cover", background: "#0c1017" }}
+                    />
+                  </a>
+                  <div className="body" style={{ padding: "22px", display: "flex", flexDirection: "column", flex: 1 }}>
+                    <div>
+                      <span
+                        className="tag"
+                        style={{
+                          display: "inline-block",
+                          color: "var(--accent)",
+                          background: "#183e35",
+                          borderRadius: "5px",
+                          padding: "3px 7px",
+                          fontSize: "10px",
+                          textTransform: "uppercase",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {art.category}
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: "19px", lineHeight: "1.4", margin: "11px 0" }}>
+                      <a href={`/articles/${art.slug}`} style={{ color: "var(--text)" }}>
+                        {art.title}
+                      </a>
+                    </h3>
+                    <div
+                      className="meta"
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px 13px",
+                        color: "var(--muted)",
+                        fontSize: "11px",
+                        marginTop: "auto",
+                      }}
+                    >
+                      <span>{art.ticker}</span>
+                      <span>{art.date}</span>
+                      <span>{art.read}</span>
+                    </div>
+                    <p className="excerpt" style={{ color: "var(--muted)", fontSize: "13px", lineHeight: "1.7", margin: "10px 0" }}>
+                      {art.excerpt}
+                    </p>
+                    <a
+                      className="read-more"
+                      href={`/articles/${art.slug}`}
+                      style={{ color: "var(--accent)", fontSize: "12px", fontWeight: "750" }}
+                    >
+                      Read analysis →
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="footer">
+      <footer className="footer" style={{ borderTop: "1px solid var(--line)", padding: "35px 0", color: "var(--muted)", fontSize: "12px" }}>
         <div className="container">
-          <p>© {new Date().getFullYear()} Satisfynex. All rights reserved.</p>
+          <div className="footer-row" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "24px", marginBottom: "20px" }}>
+            <div>
+              <a className="brand" href="/" style={{ fontSize: "20px", fontWeight: "850", color: "var(--text)" }}>
+                satisfy<span style={{ color: "var(--accent)" }}>nex</span>
+              </a>
+              <p style={{ margin: "8px 0" }}>Independent US stock research and investing education.</p>
+              <p>
+                Questions?{" "}
+                <a className="email-link" href="mailto:research@satisfynex.com" style={{ color: "var(--accent)", fontWeight: "700" }}>
+                  research@satisfynex.com
+                </a>
+              </p>
+            </div>
+            <nav className="footer-links" style={{ display: "flex", alignItems: "flex-start", flexWrap: "wrap", gap: "18px", color: "var(--muted)", fontSize: "13px", maxWidth: "600px" }}>
+              <a href="/global-markets">Global Markets</a>
+              <a href="/privacy-policy">Privacy Policy</a>
+              <a href="/terms-of-service">Terms of Service</a>
+              <a href="/about">About Us</a>
+              <a href="/contact">Contact Us</a>
+              <a href="/disclaimer">Investment Disclaimer</a>
+            </nav>
+          </div>
+          <p>© {new Date().getFullYear()} Satisfynex. All rights reserved. Market analysis is for educational purposes only.</p>
         </div>
       </footer>
     </div>
