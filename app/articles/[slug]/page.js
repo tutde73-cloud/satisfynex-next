@@ -1,8 +1,8 @@
-async function getArticle(slug) {
+async function getArticles() {
   const SUPABASE_URL = "https://ngysrsypmieuvucqupgd.supabase.co";
   const SUPABASE_KEY = "sb_publishable_U05M_WQFKioCZ1LNSfyNbQ_jUoJTQvd";
   
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/articles?select=*&slug=eq.${slug}&limit=1`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/articles?select=id,title,slug,ticker,category,excerpt,content,image_url,cover_image,status,created_at&status=eq.published&order=created_at.desc`, {
     headers: {
       apikey: SUPABASE_KEY,
       Authorization: "Bearer " + SUPABASE_KEY,
@@ -10,24 +10,12 @@ async function getArticle(slug) {
     next: { revalidate: 60 }
   });
   
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.length > 0 ? data[0] : null;
+  if (!res.ok) return [];
+  return res.json();
 }
 
-export default async function ArticlePage({ params }) {
-  const { slug } = await params;
-  const article = await getArticle(slug);
-
-  if (!article) {
-    return (
-      <div className="container" style={{padding: '80px 0', textAlign: 'center'}}>
-        <h1>Article Not Found</h1>
-        <p style={{color: 'var(--muted)', margin: '20px 0'}}>The article you are looking for does not exist or has been removed.</p>
-        <a href="/" style={{color: 'var(--accent)'}}>← Back to Home</a>
-      </div>
-    );
-  }
+export default async function Home() {
+  const articles = await getArticles();
 
   return (
     <div>
@@ -35,38 +23,52 @@ export default async function ArticlePage({ params }) {
         <div className="container nav">
           <a className="brand" href="/">satisfy<span>nex</span></a>
           <nav className="navlinks">
+            <a href="/global-markets">Global Markets</a>
             <a href="/">Research</a>
             <a href="/about">About</a>
           </nav>
         </div>
       </header>
+      
+      <main>
+        <section className="hero">
+          <div className="container">
+            <div className="eyebrow">Independent market research</div>
+            <h1 style={{fontSize: 'clamp(36px,6vw,60px)', margin: '16px 0'}}>Understand the business behind the stock.</h1>
+            <p style={{color: '#d0d9e5', fontSize: '17px'}}>Satisfynex delivers daily visual chart breakdowns and technical price action research on high-momentum US equities.</p>
+          </div>
+        </section>
 
-      <main className="container" style={{padding: '60px 20px', maxWidth: '800px'}}>
-        <div style={{marginBottom: '20px'}}>
-          <a href="/" style={{color: 'var(--accent)', fontSize: '14px'}}>← Back to Research</a>
-        </div>
-        
-        <span style={{color: 'var(--accent)', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase'}}>{article.category || 'Stock Analysis'}</span>
-        
-        <h1 style={{fontSize: 'clamp(28px, 4vw, 42px)', margin: '15px 0 20px', lineHeight: '1.2'}}>{article.title}</h1>
-        
-        <p style={{color: 'var(--muted)', fontSize: '14px', marginBottom: '30px'}}>
-          Published on {new Date(article.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          {article.ticker && ` • Ticker: ${article.ticker}`}
-        </p>
-
-        {article.image_url && (
-          <img 
-            src={article.image_url} 
-            alt={article.title} 
-            style={{width: '100%', height: 'auto', borderRadius: '12px', marginBottom: '30px', border: '1px solid var(--line)'}} 
-          />
-        )}
-
-        <div 
-          style={{fontSize: '16px', lineHeight: '1.8', color: '#e2e8f0'}}
-          dangerouslySetInnerHTML={{ __html: article.content }} 
-        />
+        <section className="container" style={{padding: '40px 0'}}>
+          <h2>Latest Research Articles ({articles.length})</h2>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginTop: '20px'}}>
+            {articles.map((art) => {
+              const slug = art.slug || art.id;
+              const imageUrl = art.image_url || art.cover_image;
+              
+              return (
+                <div key={art.id} style={{background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '14px', overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
+                  {imageUrl && (
+                    <a href={`/articles/${slug}`} style={{display: 'block', height: '180px', overflow: 'hidden', background: '#080c10'}}>
+                      <img src={imageUrl} alt={art.title} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                    </a>
+                  )}
+                  <div style={{padding: '20px', display: 'flex', flexDirection: 'column', flex: 1}}>
+                    <span style={{color: 'var(--accent)', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase'}}>{art.category || 'Stock Analysis'}</span>
+                    <h3 style={{fontSize: '18px', margin: '10px 0', lineHeight: '1.4'}}>
+                      <a href={`/articles/${slug}`} style={{color: 'var(--text)'}}>{art.title}</a>
+                    </h3>
+                    <p style={{color: 'var(--muted)', fontSize: '13px', lineHeight: '1.6', flex: 1}}>{art.excerpt}</p>
+                    <div style={{marginTop: '15px', paddingTop: '15px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted)'}}>
+                      <span>{art.ticker ? `$${art.ticker}` : 'Market Watch'}</span>
+                      <a href={`/articles/${slug}`} style={{color: 'var(--accent)', fontWeight: '600'}}>Read Analysis →</a>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </main>
 
       <footer className="footer">
